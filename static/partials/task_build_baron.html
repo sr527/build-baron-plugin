@@ -1,0 +1,14 @@
+<div class="panel buildbaron-panel" ng-controller="TaskBuildBaronCtrl" ng-show="task.status == 'failed'">
+  <div class="panel-heading">
+    <h2>
+      <i class="icon-upload" style="margin-right: 10px"></i> Build Baron
+    </h2>
+  </div>
+  <div class="panel-body">
+    <table class="table">
+      <tr ng-repeat="issue in build_baron_results">
+        <td>[[issue.fields.summary]]</td>
+      </tr>
+    </table>
+  </div>
+</div>
