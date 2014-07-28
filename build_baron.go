@@ -12,6 +12,7 @@ import (
 	"html/template"
 	"labix.org/v2/mgo/bson"
 	"net/http"
+	"strings"
 )
 
 func init() {
@@ -39,7 +40,7 @@ func (self *BuildBaronPlugin) GetUIConfig() *plugin.UIConfig {
 		StaticRoot: plugin.StaticWebRootFromSourceFile(),
 		Routes: []plugin.PluginRoute{
 			plugin.PluginRoute{
-				Path:    fmt.Sprintf("/%v/{task_id}", BUILD_BARON_UI_ENDPOINT),
+				Path:    "/" + BUILD_BARON_UI_ENDPOINT + "/{task_id}",
 				Handler: BuildBaronHandler,
 				Methods: []string{"GET"},
 			},
@@ -49,43 +50,65 @@ func (self *BuildBaronPlugin) GetUIConfig() *plugin.UIConfig {
 				Page:     plugin.TASK_PAGE,
 				Position: plugin.PAGE_RIGHT,
 				PanelHTML: "<div " +
-					"ng-include=\"'/ui/plugin/buildbaron/static/partials/task_build_baron.html'\" " +
-					// "ng-init='results=plugins.buildbaron' " +
-					//			"ng-show='plugins.buildbaron.issues.length' " +
+					"ng-include=\"'/ui/plugin/" + BUILD_BARON_PLUGIN_NAME + "/static/partials/task_build_baron.html'\" " +
 					"></div>",
 				Includes: []template.HTML{"<script " +
 					"type=\"text/javascript\"" +
-					"src=\"/ui/plugin/buildbaron/static/js/task_build_baron.js\"" +
+					"src=\"/ui/plugin/" + BUILD_BARON_PLUGIN_NAME + "/static/js/task_build_baron.js\"" +
 					"></script>"},
 			},
 		},
 	}
 }
 
+func taskToJQL(task *model.Task) string {
+	var jQLParts []string
+	var jQLClause string
+	for _, testResult := range task.TestResults {
+		if testResult.Status == "fail" {
+			jQLParts = append(jQLParts, fmt.Sprintf("text~\"%v\"", testResult.TestFile))
+		}
+	}
+	if jQLParts != nil {
+		jQLClause = strings.Join(jQLParts, " and ")
+	} else {
+		jQLClause = fmt.Sprintf("text~\"%v\"", task.DisplayName)
+	}
+
+	return fmt.Sprintf("project=BF and ( %v ) order by status asc", jQLClause)
+}
+
 func BuildBaronHandler(ae web.HandlerApp, mciSettings *mci.MCISettings,
 	r *http.Request) web.HTTPResponse {
-	//func BuildBaronHandler(r *http.Request) web.HTTPResponse {
+
+	jiraInterface := thirdparty.NewJiraInterface(
+		mciSettings.Jira.Host,
+		mciSettings.Jira.Username,
+		mciSettings.Jira.Password,
+	)
+
 	taskId := mux.Vars(r)["task_id"]
 	taskFromDb, err := model.FindOneTask(bson.M{"_id": taskId}, nil, nil)
 	if err != nil {
 		return web.JSONResponse{fmt.Sprintf("Error finding task: %v", err),
 			http.StatusInternalServerError}
 	}
-	jiraInterface := thirdparty.NewJiraInterface(
-		mciSettings.Jira.Host,
-		mciSettings.Jira.Username,
-		mciSettings.Jira.Password,
-	)
-	results, err := jiraInterface.JQL(fmt.Sprintf("project=BF and text~\"%v\"", taskFromDb.DisplayName))
+	jQL := taskToJQL(taskFromDb)
+	results, err := jiraInterface.JQLSearch(jQL)
 	if err != nil {
-		message := fmt.Sprintf("Error searching jira for ticket: %v", err)
+		message := fmt.Sprintf("Error searching jira for ticket: %v, %v", err, jQL)
 		mci.LOGGER.Errorf(slogger.ERROR, message)
 		return web.JSONResponse{message, http.StatusInternalServerError}
 	} else {
+		if results.Total > 10 {
+			results.Total = 10
+			results.Issues = results.Issues[:10]
+		}
 		return web.JSONResponse{results, http.StatusOK}
 	}
 }
 
+// NewPluginCommand is part of the plugin interface. We don't provide any Commands, so this just always returns an error
 func (self *BuildBaronPlugin) NewPluginCommand(cmdName string) (plugin.PluginCommand, error) {
 	switch cmdName {
 	default:

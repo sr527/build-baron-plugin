@@ -1,14 +1,30 @@
 <div class="panel buildbaron-panel" ng-controller="TaskBuildBaronCtrl" ng-show="task.status == 'failed'">
   <div class="panel-heading">
     <h2>
-      <i class="icon-upload" style="margin-right: 10px"></i> Build Baron
+        <image class="gravatar-small" src="/ui/plugin/buildbaron/static/images/baron.png"></img> Build Baron
     </h2>
   </div>
   <div class="panel-body">
-    <table class="table">
-      <tr ng-repeat="issue in build_baron_results">
-        <td>[[issue.fields.summary]]</td>
-      </tr>
+    <div ng-show="build_baron_status == 'loading'">
+          <span class="spinner"><i class="icon-spin icon-spinner"></i></span>
+          Searching jira for tickets
+    </div>
+    <div ng-show="build_baron_status == 'error'">Searching jira failed</div>
+    <div ng-show="build_baron_status == 'nothing'">No results found matching task or tests</div>
+    <table ng-show="build_baron_status == 'success'" class="table">
+       <tbody ng-repeat="issue in build_baron_results">
+           <tr>
+               <td colspan="2"><a href="https://jira.mongodb.org/browse/[[issue.key]]">
+                       [[issue.key]]: [[issue.fields.summary]]
+               </a></td>
+               <td>[[issue.fields.status.name]]</td>
+           </tr>
+           <tr class="commit-message" ng-show="issue.fields.status.name == 'Open'">
+               <td>Created:<br>[[issue.fields.created | date]]</td>
+               <td>Update:<br>[[issue.fields.updated | date]]</td>
+               <td>Assignee:<br>[[issue.fields.assignee.displayName]]</td>
+           </tr>
+      </tbody>
     </table>
   </div>
 </div>
