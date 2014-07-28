@@ -22,6 +22,7 @@ func init() {
 const (
 	BUILD_BARON_PLUGIN_NAME = "buildbaron"
 	BUILD_BARON_UI_ENDPOINT = "jira_bf_search"
+	JIRA_FAILURE            = "Error searching jira for ticket"
 )
 
 type BuildBaronPlugin struct{}
@@ -33,6 +34,14 @@ func (self *BuildBaronPlugin) Name() string {
 // No API component, so return an empty list of api routes
 func (self *BuildBaronPlugin) GetRoutes() []plugin.PluginRoute {
 	return []plugin.PluginRoute{}
+}
+
+// We don't provide any Commands, so this just always returns an error
+func (self *BuildBaronPlugin) NewPluginCommand(cmdName string) (plugin.PluginCommand, error) {
+	switch cmdName {
+	default:
+		return nil, fmt.Errorf("No such %v comman %v", BUILD_BARON_PLUGIN_NAME, cmdName)
+	}
 }
 
 func (self *BuildBaronPlugin) GetUIConfig() *plugin.UIConfig {
@@ -61,6 +70,46 @@ func (self *BuildBaronPlugin) GetUIConfig() *plugin.UIConfig {
 	}
 }
 
+func BuildBaronHandler(ae web.HandlerApp, mciSettings *mci.MCISettings,
+	r *http.Request) web.HTTPResponse {
+
+	taskId := mux.Vars(r)["task_id"]
+	task, err := model.FindOneTask(bson.M{"_id": taskId}, nil, nil)
+	if err != nil {
+		return web.JSONResponse{fmt.Sprintf("Error finding task: %v", err),
+			http.StatusInternalServerError}
+	}
+
+	jiraInterface := thirdparty.NewJiraInterface(
+		mciSettings.Jira.Host,
+		mciSettings.Jira.Username,
+		mciSettings.Jira.Password,
+	)
+
+	return buildBaronHandler(task, &jiraInterface)
+}
+
+type jQLSearcher interface {
+	JQLSearch(query string) (*thirdparty.JiraSearchResults, error)
+}
+
+func buildBaronHandler(task *model.Task, jiraInterface jQLSearcher) web.HTTPResponse {
+
+	jQL := taskToJQL(task)
+	results, err := jiraInterface.JQLSearch(jQL)
+	if err != nil {
+		message := fmt.Sprintf("%v: %v, %v", JIRA_FAILURE, err, jQL)
+		mci.LOGGER.Errorf(slogger.ERROR, message)
+		return web.JSONResponse{message, http.StatusInternalServerError}
+	} else {
+		if results.Total > 10 {
+			results.Total = 10
+			results.Issues = results.Issues[:10]
+		}
+		return web.JSONResponse{results, http.StatusOK}
+	}
+}
+
 func taskToJQL(task *model.Task) string {
 	var jQLParts []string
 	var jQLClause string
@@ -76,42 +125,4 @@ func taskToJQL(task *model.Task) string {
 	}
 
 	return fmt.Sprintf("project=BF and ( %v ) order by status asc", jQLClause)
-}
-
-func BuildBaronHandler(ae web.HandlerApp, mciSettings *mci.MCISettings,
-	r *http.Request) web.HTTPResponse {
-
-	jiraInterface := thirdparty.NewJiraInterface(
-		mciSettings.Jira.Host,
-		mciSettings.Jira.Username,
-		mciSettings.Jira.Password,
-	)
-
-	taskId := mux.Vars(r)["task_id"]
-	taskFromDb, err := model.FindOneTask(bson.M{"_id": taskId}, nil, nil)
-	if err != nil {
-		return web.JSONResponse{fmt.Sprintf("Error finding task: %v", err),
-			http.StatusInternalServerError}
-	}
-	jQL := taskToJQL(taskFromDb)
-	results, err := jiraInterface.JQLSearch(jQL)
-	if err != nil {
-		message := fmt.Sprintf("Error searching jira for ticket: %v, %v", err, jQL)
-		mci.LOGGER.Errorf(slogger.ERROR, message)
-		return web.JSONResponse{message, http.StatusInternalServerError}
-	} else {
-		if results.Total > 10 {
-			results.Total = 10
-			results.Issues = results.Issues[:10]
-		}
-		return web.JSONResponse{results, http.StatusOK}
-	}
-}
-
-// NewPluginCommand is part of the plugin interface. We don't provide any Commands, so this just always returns an error
-func (self *BuildBaronPlugin) NewPluginCommand(cmdName string) (plugin.PluginCommand, error) {
-	switch cmdName {
-	default:
-		return nil, fmt.Errorf("No such %v comman %v", BUILD_BARON_PLUGIN_NAME, cmdName)
-	}
 }
