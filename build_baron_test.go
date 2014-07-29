@@ -2,7 +2,16 @@ package buildbaron
 
 import (
 	"10gen.com/mci/model"
+	"10gen.com/mci/thirdparty"
+	"10gen.com/mci/web"
+	"fmt"
+	"reflect"
+	"strings"
 	"testing"
+)
+
+const (
+	jiraFailure = "fake jira failed"
 )
 
 func TestTaskToJQL(t *testing.T) {
@@ -26,5 +35,61 @@ func TestTaskToJQL(t *testing.T) {
 	referenceJQL2 := "project=BF and ( text~\"foobar\" ) order by status asc"
 	if jQL2 != referenceJQL2 {
 		t.Errorf("taskToJQL failed to produce the correct output: %v != %v", jQL2, referenceJQL2)
+	}
+}
+
+type fakeJira struct {
+	total int
+}
+
+func (self *fakeJira) JQLSearch(query string) (*thirdparty.JiraSearchResults, error) {
+	if self.total < 0 {
+		return nil, fmt.Errorf("%v", jiraFailure)
+	}
+	jiraSearchResults := thirdparty.JiraSearchResults{}
+	jiraSearchResults.Total = self.total
+	jiraSearchResults.Issues = make([]thirdparty.JiraTicket, self.total, self.total)
+	for i := 0; i < self.total; i++ {
+		issue := thirdparty.JiraTicket{}
+		issue.Fields = &thirdparty.TicketFields{}
+		issue.Fields.Summary = fmt.Sprintf("foo %v", i)
+		jiraSearchResults.Issues[i] = issue
+	}
+	return &jiraSearchResults, nil
+}
+
+func TestBuildBaronHandler(t *testing.T) {
+	task3 := model.Task{}
+	task3.TestResults = []model.TestResult{
+		model.TestResult{"fail", "foo.js", "", 0, 0, 0},
+		model.TestResult{"success", "bar.js", "", 0, 0, 0},
+		model.TestResult{"fail", "baz.js", "", 0, 0, 0},
+	}
+	task3.DisplayName = "foobar"
+
+	response := buildBaronHandler(&task3, &fakeJira{12})
+	jsonResponse, ok := response.(web.JSONResponse)
+	if !ok {
+		t.Errorf("Can't convert web.HTTPResponse to web.JSONResponse")
+	}
+	jiraSearchResults, ok := jsonResponse.Data.(*thirdparty.JiraSearchResults)
+	if !ok {
+		t.Errorf("Can't convert web.JSONResponse.Data to thirdparty.JiraSearchResults: %v %v", reflect.TypeOf(jsonResponse), reflect.TypeOf(response))
+	}
+	if jiraSearchResults.Total != 10 {
+		t.Errorf("jiraSearchResults.Total is wrong 10 != %v", jiraSearchResults.Total)
+	}
+
+	response = buildBaronHandler(&task3, &fakeJira{-1})
+	jsonResponse, ok = response.(web.JSONResponse)
+	if !ok {
+		t.Errorf("Can't convert web.HTTPResponse to web.JSONResponse")
+	}
+	message, ok := jsonResponse.Data.(string)
+	if !ok {
+		t.Errorf("Can't convert web.JSONResponse.Data to string")
+	}
+	if !strings.HasPrefix(message, JIRA_FAILURE) {
+		t.Errorf("jira error ( %v ) should start with error prefix ( %v )", JIRA_FAILURE)
 	}
 }
