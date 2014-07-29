@@ -1,0 +1,5 @@
+.buildbaron-panel{
+	max-height: 800px;
+	overflow: auto;
+	margin-bottom: 20px;
+}

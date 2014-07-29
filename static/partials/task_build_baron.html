@@ -1,4 +1,4 @@
-<div class="panel buildbaron-panel" ng-controller="TaskBuildBaronCtrl" ng-show="task.status == 'failed'">
+<div class="panel buildbaron-panel" ng-controller="TaskBuildBaronCtrl" ng-show="task.status == 'failed' && ! task.task_end_details.timed_out">
   <div class="panel-heading">
     <h2>
         <image class="gravatar-small" src="/ui/plugin/buildbaron/static/images/baron.png"></img> Build Baron

@@ -23,7 +23,7 @@ func TestTaskToJQL(t *testing.T) {
 	}
 	task1.DisplayName = "foobar"
 	jQL1 := taskToJQL(&task1)
-	referenceJQL1 := "project=BF and ( text~\"foo.js\" and text~\"baz.js\" ) order by status asc"
+	referenceJQL1 := "project=BF and ( text~\"foo.js\" or text~\"baz.js\" ) order by status asc"
 	if jQL1 != referenceJQL1 {
 		t.Errorf("taskToJQL failed to produce the correct output: %v != %v", jQL1, referenceJQL1)
 	}
@@ -76,8 +76,8 @@ func TestBuildBaronHandler(t *testing.T) {
 	if !ok {
 		t.Errorf("Can't convert web.JSONResponse.Data to thirdparty.JiraSearchResults: %v %v", reflect.TypeOf(jsonResponse), reflect.TypeOf(response))
 	}
-	if jiraSearchResults.Total != 10 {
-		t.Errorf("jiraSearchResults.Total is wrong 10 != %v", jiraSearchResults.Total)
+	if jiraSearchResults.Total != 12 {
+		t.Errorf("jiraSearchResults.Total is wrong 12 != %v", jiraSearchResults.Total)
 	}
 
 	response = buildBaronHandler(&task3, &fakeJira{-1})

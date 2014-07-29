@@ -12,6 +12,7 @@ import (
 	"html/template"
 	"labix.org/v2/mgo/bson"
 	"net/http"
+	"regexp"
 	"strings"
 )
 
@@ -61,10 +62,16 @@ func (self *BuildBaronPlugin) GetUIConfig() *plugin.UIConfig {
 				PanelHTML: "<div " +
 					"ng-include=\"'/ui/plugin/" + BUILD_BARON_PLUGIN_NAME + "/static/partials/task_build_baron.html'\" " +
 					"></div>",
-				Includes: []template.HTML{"<script " +
-					"type=\"text/javascript\"" +
-					"src=\"/ui/plugin/" + BUILD_BARON_PLUGIN_NAME + "/static/js/task_build_baron.js\"" +
-					"></script>"},
+				Includes: []template.HTML{
+					"<script " +
+						"type=\"text/javascript\"" +
+						"src=\"/ui/plugin/" + BUILD_BARON_PLUGIN_NAME + "/static/js/task_build_baron.js\"" +
+						"></script>",
+					"<link " +
+						"href=\"/ui/plugin/" + BUILD_BARON_PLUGIN_NAME + "/static/css/task_build_baron.css\" " +
+						"rel=\"stylesheet\"  " +
+						"/>",
+				},
 			},
 		},
 	}
@@ -102,10 +109,6 @@ func buildBaronHandler(task *model.Task, jiraInterface jQLSearcher) web.HTTPResp
 		mci.LOGGER.Errorf(slogger.ERROR, message)
 		return web.JSONResponse{message, http.StatusInternalServerError}
 	} else {
-		if results.Total > 10 {
-			results.Total = 10
-			results.Issues = results.Issues[:10]
-		}
 		return web.JSONResponse{results, http.StatusOK}
 	}
 }
@@ -115,11 +118,13 @@ func taskToJQL(task *model.Task) string {
 	var jQLClause string
 	for _, testResult := range task.TestResults {
 		if testResult.Status == "fail" {
-			jQLParts = append(jQLParts, fmt.Sprintf("text~\"%v\"", testResult.TestFile))
+			fileParts := regexp.MustCompile("[/\\\\]").Split(testResult.TestFile, -1)
+			//fileParts := strings.Split(testResult.TestFile, "/")
+			jQLParts = append(jQLParts, fmt.Sprintf("text~\"%v\"", fileParts[len(fileParts)-1]))
 		}
 	}
 	if jQLParts != nil {
-		jQLClause = strings.Join(jQLParts, " and ")
+		jQLClause = strings.Join(jQLParts, " or ")
 	} else {
 		jQLClause = fmt.Sprintf("text~\"%v\"", task.DisplayName)
 	}
