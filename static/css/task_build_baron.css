@@ -1,5 +1,22 @@
 .buildbaron-panel{
 	max-height: 800px;
-	overflow: auto;
-	margin-bottom: 20px;
+	overflow-x: hidden;
+	overflow-y: auto;
+}
+
+.buildbaron-issue-status{
+   text-align: right;
+   float: right;
+}
+
+.buildbaron-issue {
+  padding-top: 12px;
+}
+
+.buildbaron-issue-open {
+  font-family: Helvetica,arial,freesans,clean,sans-serif;
+  color: rgb(100, 100, 100);
+  font-size: 13px;
+  padding: 0px;
+  vertical-align: bottom;
 }
