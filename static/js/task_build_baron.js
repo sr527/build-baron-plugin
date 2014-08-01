@@ -5,7 +5,6 @@ mciModule.controller('TaskBuildBaronCtrl', function($scope, $timeout, $http, $lo
           if (data && data.issues && data.issues.length > 0 ) {
             $scope.build_baron_results = data.issues;
             $scope.build_baron_status = "success";
-            $window.data.bb = data;
           } else {
             $scope.build_baron_status = "nothing";
           }

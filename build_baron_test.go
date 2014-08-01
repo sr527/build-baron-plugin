@@ -1,12 +1,12 @@
 package buildbaron
 
 import (
+	. "github.com/smartystreets/goconvey/convey"
+
 	"10gen.com/mci/model"
 	"10gen.com/mci/thirdparty"
 	"10gen.com/mci/web"
 	"fmt"
-	"reflect"
-	"strings"
 	"testing"
 )
 
@@ -15,27 +15,29 @@ const (
 )
 
 func TestTaskToJQL(t *testing.T) {
-	task1 := model.Task{}
-	task1.TestResults = []model.TestResult{
-		model.TestResult{"fail", "foo.js", "", 0, 0, 0},
-		model.TestResult{"success", "bar.js", "", 0, 0, 0},
-		model.TestResult{"fail", "baz.js", "", 0, 0, 0},
-	}
-	task1.DisplayName = "foobar"
-	jQL1 := taskToJQL(&task1)
-	referenceJQL1 := "project=BF and ( text~\"foo.js\" or text~\"baz.js\" ) order by status asc"
-	if jQL1 != referenceJQL1 {
-		t.Errorf("taskToJQL failed to produce the correct output: %v != %v", jQL1, referenceJQL1)
-	}
+	Convey("Given a task with with two failed tests and one successful test, "+
+		"the jql should contian only the failed test names", t, func() {
+		task1 := model.Task{}
+		task1.TestResults = []model.TestResult{
+			model.TestResult{"fail", "foo.js", "", 0, 0, 0},
+			model.TestResult{"success", "bar.js", "", 0, 0, 0},
+			model.TestResult{"fail", "baz.js", "", 0, 0, 0},
+		}
+		task1.DisplayName = "foobar"
+		jQL1 := taskToJQL(&task1)
+		referenceJQL1 := "project=BF and ( text~\"foo.js\" or text~\"baz.js\" ) order by status asc"
+		So(jQL1, ShouldEqual, referenceJQL1)
+	})
 
-	task2 := model.Task{}
-	task2.TestResults = []model.TestResult{}
-	task2.DisplayName = "foobar"
-	jQL2 := taskToJQL(&task2)
-	referenceJQL2 := "project=BF and ( text~\"foobar\" ) order by status asc"
-	if jQL2 != referenceJQL2 {
-		t.Errorf("taskToJQL failed to produce the correct output: %v != %v", jQL2, referenceJQL2)
-	}
+	Convey("Given a task with with oo failed tests, "+
+		"the jql should contian only the failed task name", t, func() {
+		task2 := model.Task{}
+		task2.TestResults = []model.TestResult{}
+		task2.DisplayName = "foobar"
+		jQL2 := taskToJQL(&task2)
+		referenceJQL2 := "project=BF and ( text~\"foobar\" ) order by status asc"
+		So(jQL2, ShouldEqual, referenceJQL2)
+	})
 }
 
 type fakeJira struct {
@@ -59,37 +61,31 @@ func (self *fakeJira) JQLSearch(query string) (*thirdparty.JiraSearchResults, er
 }
 
 func TestBuildBaronHandler(t *testing.T) {
-	task3 := model.Task{}
-	task3.TestResults = []model.TestResult{
-		model.TestResult{"fail", "foo.js", "", 0, 0, 0},
-		model.TestResult{"success", "bar.js", "", 0, 0, 0},
-		model.TestResult{"fail", "baz.js", "", 0, 0, 0},
-	}
-	task3.DisplayName = "foobar"
+	Convey("with an arbitrary fake task", t, func() {
+		task3 := model.Task{}
+		task3.TestResults = []model.TestResult{
+			model.TestResult{"fail", "foo.js", "", 0, 0, 0},
+			model.TestResult{"success", "bar.js", "", 0, 0, 0},
+			model.TestResult{"fail", "baz.js", "", 0, 0, 0},
+		}
+		task3.DisplayName = "foobar"
 
-	response := buildBaronHandler(&task3, &fakeJira{12})
-	jsonResponse, ok := response.(web.JSONResponse)
-	if !ok {
-		t.Errorf("Can't convert web.HTTPResponse to web.JSONResponse")
-	}
-	jiraSearchResults, ok := jsonResponse.Data.(*thirdparty.JiraSearchResults)
-	if !ok {
-		t.Errorf("Can't convert web.JSONResponse.Data to thirdparty.JiraSearchResults: %v %v", reflect.TypeOf(jsonResponse), reflect.TypeOf(response))
-	}
-	if jiraSearchResults.Total != 12 {
-		t.Errorf("jiraSearchResults.Total is wrong 12 != %v", jiraSearchResults.Total)
-	}
+		Convey("and 12 results from jira", func() {
+			response := buildBaronHandler(&task3, &fakeJira{12})
+			jsonResponse, ok := response.(web.JSONResponse)
+			So(ok, ShouldBeTrue)
+			jiraSearchResults, ok := jsonResponse.Data.(*thirdparty.JiraSearchResults)
+			So(ok, ShouldBeTrue)
+			So(jiraSearchResults.Total, ShouldEqual, 12)
+		})
 
-	response = buildBaronHandler(&task3, &fakeJira{-1})
-	jsonResponse, ok = response.(web.JSONResponse)
-	if !ok {
-		t.Errorf("Can't convert web.HTTPResponse to web.JSONResponse")
-	}
-	message, ok := jsonResponse.Data.(string)
-	if !ok {
-		t.Errorf("Can't convert web.JSONResponse.Data to string")
-	}
-	if !strings.HasPrefix(message, JIRA_FAILURE) {
-		t.Errorf("jira error ( %v ) should start with error prefix ( %v )", JIRA_FAILURE)
-	}
+		Convey("and a error from jira", func() {
+			response := buildBaronHandler(&task3, &fakeJira{-1})
+			jsonResponse, ok := response.(web.JSONResponse)
+			So(ok, ShouldBeTrue)
+			message, ok := jsonResponse.Data.(string)
+			So(ok, ShouldBeTrue)
+			ShouldStartWith(message, JIRA_FAILURE)
+		})
+	})
 }
