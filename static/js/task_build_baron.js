@@ -1,4 +1,4 @@
-mciModule.controller('TaskBuildBaronCtrl', function($scope, $timeout, $http, $location, $window) {
+mciModule.controller('TaskBuildBaronCtrl', function($scope, $http, $window) {
   $scope.getBuildBaronResults = function() {
     $http.get('/ui/plugin/buildbaron/jira_bf_search/' + $scope.taskId ).
       success(function(data, status) {
