@@ -25,7 +25,7 @@ func TestTaskToJQL(t *testing.T) {
 		}
 		task1.DisplayName = "foobar"
 		jQL1 := taskToJQL(&task1)
-		referenceJQL1 := "project=BF and ( text~\"foo.js\" or text~\"baz.js\" ) order by status asc"
+		referenceJQL1 := fmt.Sprintf(JQL_BF_QUERY, "text~\"foo.js\" or text~\"baz.js\"")
 		So(jQL1, ShouldEqual, referenceJQL1)
 	})
 
@@ -35,7 +35,7 @@ func TestTaskToJQL(t *testing.T) {
 		task2.TestResults = []model.TestResult{}
 		task2.DisplayName = "foobar"
 		jQL2 := taskToJQL(&task2)
-		referenceJQL2 := "project=BF and ( text~\"foobar\" ) order by status asc"
+		referenceJQL2 := fmt.Sprintf(JQL_BF_QUERY, "text~\"foobar\"")
 		So(jQL2, ShouldEqual, referenceJQL2)
 	})
 }
@@ -44,6 +44,10 @@ type fakeJira struct {
 	total int
 }
 
+// If the total in the fakeJira struct is negative then JQLSearch returns an error,
+// If total zero or positive it returns a JiraSearchResults with that number of JiraTicket
+// Each jira ticket has a summary of "foo <n>" where n represents its position in the list
+// of JiraTickets
 func (self *fakeJira) JQLSearch(query string) (*thirdparty.JiraSearchResults, error) {
 	if self.total < 0 {
 		return nil, fmt.Errorf("%v", jiraFailure)
@@ -71,7 +75,7 @@ func TestBuildBaronHandler(t *testing.T) {
 		task3.DisplayName = "foobar"
 
 		Convey("and 12 results from jira", func() {
-			response := buildBaronHandler(&task3, &fakeJira{12})
+			response := buildFailuresSearchHandler(&task3, &fakeJira{12})
 			jsonResponse, ok := response.(web.JSONResponse)
 			So(ok, ShouldBeTrue)
 			jiraSearchResults, ok := jsonResponse.Data.(*thirdparty.JiraSearchResults)
@@ -80,7 +84,7 @@ func TestBuildBaronHandler(t *testing.T) {
 		})
 
 		Convey("and a error from jira", func() {
-			response := buildBaronHandler(&task3, &fakeJira{-1})
+			response := buildFailuresSearchHandler(&task3, &fakeJira{-1})
 			jsonResponse, ok := response.(web.JSONResponse)
 			So(ok, ShouldBeTrue)
 			message, ok := jsonResponse.Data.(string)
