@@ -13,6 +13,7 @@ mciModule.controller('TaskBuildBaronCtrl', function($scope, $http, $window) {
             $scope.build_baron_status = "error";
       });
   };
+  $scope.have_user = $window.have_user
 
   $scope.setTask = function(task) {
     $scope.task = task;

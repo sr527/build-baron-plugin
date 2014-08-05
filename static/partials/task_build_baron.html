@@ -1,7 +1,7 @@
 <div
     class="panel buildbaron-panel"
     ng-controller="TaskBuildBaronCtrl"
-    ng-show="task.status == 'failed' && ! task.task_end_details.timed_out"
+    ng-show="task.status == 'failed' && ! task.task_end_details.timed_out && have_user"
     >
   <div class="panel-heading">
     <h2>
