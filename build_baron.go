@@ -87,8 +87,8 @@ func (self *BuildBaronPlugin) GetUIConfig() (*plugin.UIConfig, error) {
 		},
 		Panels: []plugin.UIPanel{
 			{
-				Page:      plugin.TASK_PAGE,
-				Position:  plugin.PAGE_RIGHT,
+				Page:      plugin.TaskPage,
+				Position:  plugin.PageRight,
 				PanelHTML: template.HTML(panelHTML),
 				Includes:  []template.HTML{template.HTML(includeCSS), template.HTML(includeJS)},
 			},
@@ -128,7 +128,7 @@ func buildFailuresSearchHandler(task *model.Task, jiraHandler jqlSearcher) web.H
 	results, err := jiraHandler.JQLSearch(jql)
 	if err != nil {
 		message := fmt.Sprintf("%v: %v, %v", JIRA_FAILURE, err, jql)
-		mci.LOGGER.Errorf(slogger.ERROR, message)
+		mci.Logger.Errorf(slogger.ERROR, message)
 		return web.JSONResponse{message, http.StatusInternalServerError}
 	}
 	return web.JSONResponse{results, http.StatusOK}
@@ -143,7 +143,7 @@ func taskToJQL(task *model.Task) string {
 	var jqlParts []string
 	var jqlClause string
 	for _, testResult := range task.TestResults {
-		if testResult.Status == mci.TEST_FAILED_STATUS {
+		if testResult.Status == mci.TestFailedStatus {
 			fileParts := eitherSlash.Split(testResult.TestFile, -1)
 			jqlParts = append(jqlParts, fmt.Sprintf("text~\"%v\"", fileParts[len(fileParts)-1]))
 		}
