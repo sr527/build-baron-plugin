@@ -20,7 +20,7 @@ mciModule.controller('TaskBuildBaronCtrl', function($scope, $http, $window) {
     $scope.taskId = task.id;
   };
 
-  $scope.setTask($window.data.task_data);
+  $scope.setTask($window.task_data);
 
   if ( $scope.task.status == "failed" && ! $scope.task.task_end_details.timed_out ) {
     $scope.build_baron_status = "loading"; 
