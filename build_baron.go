@@ -5,10 +5,10 @@ import (
 	"10gen.com/mci/model"
 	"10gen.com/mci/plugin"
 	"10gen.com/mci/thirdparty"
-	"10gen.com/mci/web"
 	"fmt"
 	"github.com/10gen-labs/slogger/v1"
 	"github.com/gorilla/mux"
+	"github.com/mitchellh/mapstructure"
 	"html/template"
 	"io/ioutil"
 	"net/http"
@@ -21,70 +21,89 @@ func init() {
 }
 
 const (
-	BUILD_BARON_PLUGIN_NAME = "buildbaron"
-	BUILD_BARON_UI_ENDPOINT = "jira_bf_search"
-	JIRA_FAILURE            = "Error searching jira for ticket"
-	JQL_BF_QUERY            = "project=BF and ( %v ) order by status asc, updatedDate desc"
+	PluginName  = "buildbaron"
+	JIRAFailure = "Error searching jira for ticket"
+	JQLBFQuery  = "project=BF and ( %v ) order by status asc, updatedDate desc"
 )
 
-type BuildBaronPlugin struct{}
+type jiraOptions struct {
+	Host     string
+	Username string
+	Password string
+}
+
+type BuildBaronPlugin struct {
+	opts *jiraOptions
+}
 
 // A regex that matches either / or \ for splitting directory paths
 // on either windows or linux paths.
 var eitherSlash *regexp.Regexp = regexp.MustCompile(`[/\\]`)
 
-func (self *BuildBaronPlugin) Name() string {
-	return BUILD_BARON_PLUGIN_NAME
+func (bbp *BuildBaronPlugin) Name() string {
+	return PluginName
 }
 
 // No API component, so return an empty list of api routes
-func (self *BuildBaronPlugin) GetRoutes() []plugin.PluginRoute {
-	return []plugin.PluginRoute{}
+func (bbp *BuildBaronPlugin) GetAPIHandler() http.Handler {
+	return nil
+}
+
+// No API component, so return an empty list of api routes
+func (bbp *BuildBaronPlugin) GetUIHandler() http.Handler {
+	if bbp.opts == nil {
+		panic("build baron plugin missing configuration")
+	}
+	r := mux.NewRouter()
+	r.Path("/jira_bf_search/{task_id}").HandlerFunc(bbp.buildFailuresSearch)
+	return r
 }
 
 // We don't provide any Commands, so this just always returns an error
-func (self *BuildBaronPlugin) NewPluginCommand(cmdName string) (plugin.PluginCommand, error) {
+func (bbp *BuildBaronPlugin) NewCommand(cmdName string) (plugin.Command, error) {
 	switch cmdName {
 	default:
-		return nil, fmt.Errorf("%v has no commands, especially not %v", BUILD_BARON_PLUGIN_NAME, cmdName)
+		return nil, fmt.Errorf("%v has no commands, especially not %v", PluginName, cmdName)
 	}
 }
 
-func (self *BuildBaronPlugin) GetUIConfig() (*plugin.UIConfig, error) {
+func (bbp *BuildBaronPlugin) Configure(conf map[string]interface{}) error {
+	// pull out the JIRA stuff we need from the config file
+	jiraParams := &jiraOptions{}
+	err := mapstructure.Decode(conf, jiraParams)
+	if err != nil {
+		return err
+	}
+	if jiraParams.Host == "" || jiraParams.Username == "" || jiraParams.Password == "" {
+		return fmt.Errorf("Host, username, and password in config must not be blank")
+	}
+	bbp.opts = jiraParams
+	return nil
+}
 
-	panelHTML, err := ioutil.ReadFile(plugin.StaticWebRootFromSourceFile() +
-		"/partials/ng_include_task_build_baron.html")
+func (bbp *BuildBaronPlugin) GetPanelConfig() (*plugin.PanelConfig, error) {
+	root := plugin.StaticWebRootFromSourceFile()
+	panelHTML, err := ioutil.ReadFile(root + "/partials/ng_include_task_build_baron.html")
 	if err != nil {
 		return nil, fmt.Errorf("Can't load panel html file, %v, %v",
-			plugin.StaticWebRootFromSourceFile()+
-				"/partials/ng_include_task_build_baron.html", err)
+			root+"/partials/ng_include_task_build_baron.html", err)
 	}
 
-	includeJS, err := ioutil.ReadFile(plugin.StaticWebRootFromSourceFile() +
-		"/partials/script_task_build_baron_js.html")
+	includeJS, err := ioutil.ReadFile(root + "/partials/script_task_build_baron_js.html")
 	if err != nil {
 		return nil, fmt.Errorf("Can't load panel html file, %v, %v",
-			plugin.StaticWebRootFromSourceFile()+
-				"/partials/script_task_build_baron_js.html", err)
+			root+"/partials/script_task_build_baron_js.html", err)
 	}
 
-	includeCSS, err := ioutil.ReadFile(plugin.StaticWebRootFromSourceFile() +
+	includeCSS, err := ioutil.ReadFile(root +
 		"/partials/link_task_build_baron_css.html")
 	if err != nil {
 		return nil, fmt.Errorf("Can't load panel html file, %v, %v",
-			plugin.StaticWebRootFromSourceFile()+
-				"/partials/link_task_build_baron_css.html", err)
+			root+"/partials/link_task_build_baron_css.html", err)
 	}
 
-	return &plugin.UIConfig{
+	return &plugin.PanelConfig{
 		StaticRoot: plugin.StaticWebRootFromSourceFile(),
-		Routes: []plugin.PluginRoute{
-			plugin.PluginRoute{
-				Path:    fmt.Sprintf("/%v/{task_id}", BUILD_BARON_UI_ENDPOINT),
-				Handler: BuildFailuresSearchHandler,
-				Methods: []string{"GET"},
-			},
-		},
 		Panels: []plugin.UIPanel{
 			{
 				Page:      plugin.TaskPage,
@@ -98,40 +117,34 @@ func (self *BuildBaronPlugin) GetUIConfig() (*plugin.UIConfig, error) {
 
 // BuildFailuresSearchHandler handles the requests of searching jira in the build
 //  failures project
-func BuildFailuresSearchHandler(ae web.HandlerApp, mciSettings *mci.MCISettings,
-	r *http.Request) web.HTTPResponse {
-
+func (bbp *BuildBaronPlugin) buildFailuresSearch(w http.ResponseWriter, r *http.Request) {
 	taskId := mux.Vars(r)["task_id"]
 	task, err := model.FindTask(taskId)
 	if err != nil {
-		return web.JSONResponse{fmt.Sprintf("Error finding task: %v", err),
-			http.StatusInternalServerError}
+		plugin.WriteJSON(w, http.StatusInternalServerError, err.Error())
+		return
 	}
+	jql := taskToJQL(task)
 
 	jiraHandler := thirdparty.NewJiraHandler(
-		mciSettings.Jira.Host,
-		mciSettings.Jira.Username,
-		mciSettings.Jira.Password,
+		bbp.opts.Host,
+		bbp.opts.Username,
+		bbp.opts.Password,
 	)
 
-	return buildFailuresSearchHandler(task, &jiraHandler)
+	results, err := jiraHandler.JQLSearch(jql)
+	if err != nil {
+		message := fmt.Sprintf("%v: %v, %v", JIRAFailure, err, jql)
+		mci.Logger.Errorf(slogger.ERROR, message)
+		plugin.WriteJSON(w, http.StatusInternalServerError, message)
+		return
+	}
+	plugin.WriteJSON(w, http.StatusOK, results)
 }
 
 // In order that we can write tests without an actual jira server handy
 type jqlSearcher interface {
 	JQLSearch(query string) (*thirdparty.JiraSearchResults, error)
-}
-
-func buildFailuresSearchHandler(task *model.Task, jiraHandler jqlSearcher) web.HTTPResponse {
-
-	jql := taskToJQL(task)
-	results, err := jiraHandler.JQLSearch(jql)
-	if err != nil {
-		message := fmt.Sprintf("%v: %v, %v", JIRA_FAILURE, err, jql)
-		mci.Logger.Errorf(slogger.ERROR, message)
-		return web.JSONResponse{message, http.StatusInternalServerError}
-	}
-	return web.JSONResponse{results, http.StatusOK}
 }
 
 // Generates a jira JQL string from the task
@@ -154,5 +167,5 @@ func taskToJQL(task *model.Task) string {
 		jqlClause = fmt.Sprintf("text~\"%v\"", task.DisplayName)
 	}
 
-	return fmt.Sprintf(JQL_BF_QUERY, jqlClause)
+	return fmt.Sprintf(JQLBFQuery, jqlClause)
 }
