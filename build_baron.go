@@ -1,10 +1,10 @@
 package buildbaron
 
 import (
-	"10gen.com/mci"
-	"10gen.com/mci/model"
-	"10gen.com/mci/plugin"
-	"10gen.com/mci/thirdparty"
+	"github.com/evergreen-ci/evergreen"
+	"github.com/evergreen-ci/evergreen/model"
+	"github.com/evergreen-ci/evergreen/plugin"
+	"github.com/evergreen-ci/evergreen/thirdparty"
 	"fmt"
 	"github.com/10gen-labs/slogger/v1"
 	"github.com/gorilla/mux"
@@ -135,7 +135,7 @@ func (bbp *BuildBaronPlugin) buildFailuresSearch(w http.ResponseWriter, r *http.
 	results, err := jiraHandler.JQLSearch(jql)
 	if err != nil {
 		message := fmt.Sprintf("%v: %v, %v", JIRAFailure, err, jql)
-		mci.Logger.Errorf(slogger.ERROR, message)
+		evergreen.Logger.Errorf(slogger.ERROR, message)
 		plugin.WriteJSON(w, http.StatusInternalServerError, message)
 		return
 	}
@@ -156,7 +156,7 @@ func taskToJQL(task *model.Task) string {
 	var jqlParts []string
 	var jqlClause string
 	for _, testResult := range task.TestResults {
-		if testResult.Status == mci.TestFailedStatus {
+		if testResult.Status == evergreen.TestFailedStatus {
 			fileParts := eitherSlash.Split(testResult.TestFile, -1)
 			jqlParts = append(jqlParts, fmt.Sprintf("text~\"%v\"", fileParts[len(fileParts)-1]))
 		}
