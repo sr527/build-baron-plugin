@@ -44,12 +44,7 @@ func (bbp *BuildBaronPlugin) Name() string {
 	return PluginName
 }
 
-// No API component, so return an empty list of api routes
-func (bbp *BuildBaronPlugin) GetAPIHandler() http.Handler {
-	return nil
-}
-
-// No API component, so return an empty list of api routes
+// GetUIHandler adds a path for looking up build failures in JIRA.
 func (bbp *BuildBaronPlugin) GetUIHandler() http.Handler {
 	if bbp.opts == nil {
 		panic("build baron plugin missing configuration")
@@ -57,14 +52,6 @@ func (bbp *BuildBaronPlugin) GetUIHandler() http.Handler {
 	r := mux.NewRouter()
 	r.Path("/jira_bf_search/{task_id}").HandlerFunc(bbp.buildFailuresSearch)
 	return r
-}
-
-// We don't provide any Commands, so this just always returns an error
-func (bbp *BuildBaronPlugin) NewCommand(cmdName string) (plugin.Command, error) {
-	switch cmdName {
-	default:
-		return nil, fmt.Errorf("%v has no commands, especially not %v", PluginName, cmdName)
-	}
 }
 
 func (bbp *BuildBaronPlugin) Configure(conf map[string]interface{}) error {
