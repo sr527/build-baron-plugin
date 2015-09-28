@@ -1,12 +1,12 @@
 package buildbaron
 
 import (
+	"fmt"
+	"github.com/10gen-labs/slogger/v1"
 	"github.com/evergreen-ci/evergreen"
 	"github.com/evergreen-ci/evergreen/model"
 	"github.com/evergreen-ci/evergreen/plugin"
 	"github.com/evergreen-ci/evergreen/thirdparty"
-	"fmt"
-	"github.com/10gen-labs/slogger/v1"
 	"github.com/gorilla/mux"
 	"github.com/mitchellh/mapstructure"
 	"html/template"
@@ -23,7 +23,7 @@ func init() {
 const (
 	PluginName  = "buildbaron"
 	JIRAFailure = "Error searching jira for ticket"
-	JQLBFQuery  = "project=BF and ( %v ) order by status asc, updatedDate desc"
+	JQLBFQuery  = "project=BF or project=SERVER and ( %v ) order by status asc, updatedDate desc"
 )
 
 type jiraOptions struct {
