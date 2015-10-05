@@ -23,7 +23,7 @@ func init() {
 const (
 	PluginName  = "buildbaron"
 	JIRAFailure = "Error searching jira for ticket"
-	JQLBFQuery  = "project=BF or project=SERVER and ( %v ) order by status asc, updatedDate desc"
+	JQLBFQuery  = "(project=BF or project=SERVER) and ( %v ) order by status asc, updatedDate desc"
 )
 
 type jiraOptions struct {
