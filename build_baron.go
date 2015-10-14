@@ -4,16 +4,22 @@ import (
 	"fmt"
 	"github.com/10gen-labs/slogger/v1"
 	"github.com/evergreen-ci/evergreen"
+	"github.com/evergreen-ci/evergreen/db"
+	"github.com/evergreen-ci/evergreen/db/bsonutil"
 	"github.com/evergreen-ci/evergreen/model"
 	"github.com/evergreen-ci/evergreen/plugin"
 	"github.com/evergreen-ci/evergreen/thirdparty"
+	"github.com/evergreen-ci/evergreen/util"
 	"github.com/gorilla/mux"
 	"github.com/mitchellh/mapstructure"
+	"gopkg.in/mgo.v2"
+	"gopkg.in/mgo.v2/bson"
 	"html/template"
 	"io/ioutil"
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
 )
 
 func init() {
@@ -24,6 +30,10 @@ const (
 	PluginName  = "buildbaron"
 	JIRAFailure = "Error searching jira for ticket"
 	JQLBFQuery  = "(project=BF or project=SERVER) and ( %v ) order by status asc, updatedDate desc"
+
+	NotesCollection = "build_baron_notes"
+	msPerNS         = 1000 * 1000
+	maxNoteSize     = 16 * 1024 // 16KB
 )
 
 type jiraOptions struct {
@@ -51,6 +61,8 @@ func (bbp *BuildBaronPlugin) GetUIHandler() http.Handler {
 	}
 	r := mux.NewRouter()
 	r.Path("/jira_bf_search/{task_id}").HandlerFunc(bbp.buildFailuresSearch)
+	r.Path("/note/{task_id}").Methods("GET").HandlerFunc(bbp.getNote)
+	r.Path("/note/{task_id}").Methods("PUT").HandlerFunc(bbp.saveNote)
 	return r
 }
 
@@ -129,6 +141,63 @@ func (bbp *BuildBaronPlugin) buildFailuresSearch(w http.ResponseWriter, r *http.
 	plugin.WriteJSON(w, http.StatusOK, results)
 }
 
+// getNote retrieves the latest note from the database.
+func (bbp *BuildBaronPlugin) getNote(w http.ResponseWriter, r *http.Request) {
+	taskId := mux.Vars(r)["task_id"]
+	n, err := NoteForTask(taskId)
+	if err != nil {
+		plugin.WriteJSON(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if n == nil {
+		plugin.WriteJSON(w, http.StatusOK, "")
+		return
+	}
+	plugin.WriteJSON(w, http.StatusOK, n)
+}
+
+// saveNote reads a request containing a note's content along with the last seen
+// edit time and updates the note in the database.
+func (bbp *BuildBaronPlugin) saveNote(w http.ResponseWriter, r *http.Request) {
+	taskId := mux.Vars(r)["task_id"]
+	n := &Note{}
+	if err := util.ReadJSONInto(r.Body, n); err != nil {
+		plugin.WriteJSON(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	// prevent incredibly large notes
+	if len(n.Content) > maxNoteSize {
+		plugin.WriteJSON(w, http.StatusBadRequest, "note is too large")
+		return
+	}
+
+	// We need to make sure the user isn't blowing away a new edit,
+	// so we load the existing note. If the user's last seen edit time is less
+	// than the most recent edit, we error with a helpful message.
+	old, err := NoteForTask(taskId)
+	if err != nil {
+		plugin.WriteJSON(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	// we compare times by millisecond rather than nanosecond so we can
+	// work around the rounding that occurs when javascript forces these
+	// large values into in float type.
+	if old != nil && n.UnixNanoTime/msPerNS != old.UnixNanoTime/msPerNS {
+		plugin.WriteJSON(w, http.StatusBadRequest,
+			"this note has already been edited. Please refresh and try again.")
+		return
+	}
+
+	n.TaskId = taskId
+	n.UnixNanoTime = time.Now().UnixNano()
+	if err := n.Upsert(); err != nil {
+		plugin.WriteJSON(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	plugin.WriteJSON(w, http.StatusOK, n)
+}
+
 // In order that we can write tests without an actual jira server handy
 type jqlSearcher interface {
 	JQLSearch(query string) (*thirdparty.JiraSearchResults, error)
@@ -155,4 +224,39 @@ func taskToJQL(task *model.Task) string {
 	}
 
 	return fmt.Sprintf(JQLBFQuery, jqlClause)
+}
+
+// Note contains arbitrary information entered by an Evergreen user, scope to a task.
+type Note struct {
+	TaskId       string `bson:"_id" json:"-"`
+	UnixNanoTime int64  `bson:"time" json:"time"`
+	Content      string `bson:"content" json:"content"`
+}
+
+// Note DB Logic
+
+var TaskIdKey = bsonutil.MustHaveTag(Note{}, "TaskId")
+
+// Upsert overwrites an existing note.
+func (n *Note) Upsert() error {
+	_, err := db.Upsert(
+		NotesCollection,
+		bson.D{{TaskIdKey, n.TaskId}},
+		n,
+	)
+	return err
+}
+
+// NoteForTask returns the note for the given task Id, if it exists.
+func NoteForTask(taskId string) (*Note, error) {
+	n := &Note{}
+	err := db.FindOneQ(
+		NotesCollection,
+		db.Query(bson.D{{TaskIdKey, taskId}}),
+		n,
+	)
+	if err == mgo.ErrNotFound {
+		return nil, nil
+	}
+	return n, err
 }

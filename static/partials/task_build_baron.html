@@ -1,17 +1,29 @@
+<div class="row"><div class="col-lg-12">
 <div
-    class="panel buildbaron-panel"
+    class="buildbaron-panel"
     ng-controller="TaskBuildBaronCtrl"
     ng-show="task.status == 'failed' && ! task.task_end_details.timed_out && have_user"
     >
-  <div class="panel-heading">
-    <h2>
+    <h3>
         <img class="gravatar-small" src="/plugin/buildbaron/static/images/baron.png">
         </img>
         Build Baron
-    </h2>
-  </div>
-  <div class="panel-body" ng-switch="build_baron_status">
-    <div ng-switch-when="loading">
+    </h3>
+  <div class="mci-pod buildbaron-pod" ng-switch="build_baron_status">
+    <div class="buildbaron-notes">
+      <pre ng-hide="editing || note==''" ng-bind-html="note | linky"></pre>
+      <textarea name="note-text" ng-show="editing" class="form-control notes" rows="8" ng-model="note"></textarea>
+      <button class="btn btn-info" ng-show="loaded && !editing && note==''" ng-click="editing=true">Add Note</button>
+      <button class="btn btn-default" ng-show="!editing && note!=''" ng-click="editing=true">Edit Note</button>
+      <button class="btn btn-warning" ng-show="editing" ng-click="saveNote()">Save Note</button>
+      <span class="buildbaron-time" ng-show="editTime > 0">
+        last edited on [[editTime | dateFromNanoseconds | convertDateToUserTimezone:userTz:"MMM D, YYYY h:mm:ss a"]]
+      </span>
+      <confirm-on-exit confirm-on-exit="editing"
+                       confirm-message-window="Your changes to the note will be lost." >
+      </confirm-on-exit>
+    </div>
+    <div class="buildbaron-results" ng-switch-when="loading">
           <span class="spinner"><i class="icon-spin icon-spinner"></i></span>
           Searching jira for tickets
     </div>
@@ -51,3 +63,4 @@
     </div>
   </div>
 </div>
+</div></div>
