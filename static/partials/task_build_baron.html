@@ -27,8 +27,8 @@
           <span class="spinner"><i class="icon-spin icon-spinner"></i></span>
           Searching jira for tickets
     </div>
-    <div ng-switch-when="error">Searching jira failed</div>
-    <div ng-switch-when="nothing">No results found matching task or tests</div>
+    <div ng-switch-when="error" class="buildbaron-results">Searching jira failed</div>
+    <div ng-switch-when="nothing" class="buildbaron-results">No results found matching task or tests</div>
     <div ng-switch-when="success" class="buildbaron-results">
        <div class="buildbaron-issue" ng-repeat="issue in build_baron_results">
            <div class="buildbaron-row buildbaron-row-[[issue.fields.status.name | lowercase]]">
