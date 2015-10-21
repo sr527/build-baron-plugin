@@ -214,13 +214,13 @@ func taskToJQL(task *model.Task) string {
 	for _, testResult := range task.TestResults {
 		if testResult.Status == evergreen.TestFailedStatus {
 			fileParts := eitherSlash.Split(testResult.TestFile, -1)
-			jqlParts = append(jqlParts, fmt.Sprintf("text~\"%v\"", fileParts[len(fileParts)-1]))
+			jqlParts = append(jqlParts, fmt.Sprintf("summary~\"%v\"", fileParts[len(fileParts)-1]))
 		}
 	}
 	if jqlParts != nil {
 		jqlClause = strings.Join(jqlParts, " or ")
 	} else {
-		jqlClause = fmt.Sprintf("text~\"%v\"", task.DisplayName)
+		jqlClause = fmt.Sprintf("summary~\"%v\"", task.DisplayName)
 	}
 
 	return fmt.Sprintf(JQLBFQuery, jqlClause)

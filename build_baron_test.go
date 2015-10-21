@@ -29,7 +29,7 @@ func TestTaskToJQL(t *testing.T) {
 		}
 		task1.DisplayName = "foobar"
 		jQL1 := taskToJQL(&task1)
-		referenceJQL1 := fmt.Sprintf(JQLBFQuery, "text~\"foo.js\" or text~\"baz.js\"")
+		referenceJQL1 := fmt.Sprintf(JQLBFQuery, "summary~\"foo.js\" or summary~\"baz.js\"")
 		So(jQL1, ShouldEqual, referenceJQL1)
 	})
 
@@ -39,7 +39,7 @@ func TestTaskToJQL(t *testing.T) {
 		task2.TestResults = []model.TestResult{}
 		task2.DisplayName = "foobar"
 		jQL2 := taskToJQL(&task2)
-		referenceJQL2 := fmt.Sprintf(JQLBFQuery, "text~\"foobar\"")
+		referenceJQL2 := fmt.Sprintf(JQLBFQuery, "summary~\"foobar\"")
 		So(jQL2, ShouldEqual, referenceJQL2)
 	})
 }
