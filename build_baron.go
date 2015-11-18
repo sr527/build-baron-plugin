@@ -63,6 +63,7 @@ func (bbp *BuildBaronPlugin) GetUIHandler() http.Handler {
 	r.Path("/jira_bf_search/{task_id}").HandlerFunc(bbp.buildFailuresSearch)
 	r.Path("/note/{task_id}").Methods("GET").HandlerFunc(bbp.getNote)
 	r.Path("/note/{task_id}").Methods("PUT").HandlerFunc(bbp.saveNote)
+	r.Path("/file_ticket").Methods("POST").HandlerFunc(bbp.fileTicket)
 	return r
 }
 
