@@ -36,14 +36,15 @@ const (
 	maxNoteSize     = 16 * 1024 // 16KB
 )
 
-type jiraOptions struct {
+type bbPluginOptions struct {
 	Host     string
 	Username string
 	Password string
+	Projects []string
 }
 
 type BuildBaronPlugin struct {
-	opts *jiraOptions
+	opts *bbPluginOptions
 }
 
 // A regex that matches either / or \ for splitting directory paths
@@ -68,16 +69,16 @@ func (bbp *BuildBaronPlugin) GetUIHandler() http.Handler {
 }
 
 func (bbp *BuildBaronPlugin) Configure(conf map[string]interface{}) error {
-	// pull out the JIRA stuff we need from the config file
-	jiraParams := &jiraOptions{}
-	err := mapstructure.Decode(conf, jiraParams)
+	// pull out options needed from config file (JIRA authentication info, and list of projects)
+	bbpOptions := &bbPluginOptions{}
+	err := mapstructure.Decode(conf, bbpOptions)
 	if err != nil {
 		return err
 	}
-	if jiraParams.Host == "" || jiraParams.Username == "" || jiraParams.Password == "" {
+	if bbpOptions.Host == "" || bbpOptions.Username == "" || bbpOptions.Password == "" {
 		return fmt.Errorf("Host, username, and password in config must not be blank")
 	}
-	bbp.opts = jiraParams
+	bbp.opts = bbpOptions
 	return nil
 }
 
@@ -110,6 +111,11 @@ func (bbp *BuildBaronPlugin) GetPanelConfig() (*plugin.PanelConfig, error) {
 				Position:  plugin.PageRight,
 				PanelHTML: template.HTML(panelHTML),
 				Includes:  []template.HTML{template.HTML(includeCSS), template.HTML(includeJS)},
+				DataFunc: func(context plugin.UIContext) (interface{}, error) {
+					return struct {
+						Enabled bool `json:"enabled"`
+					}{util.SliceContains(bbp.opts.Projects, context.ProjectRef.Identifier)}, nil
+				},
 			},
 		},
 	}, nil

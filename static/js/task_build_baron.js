@@ -1,4 +1,5 @@
 mciModule.controller('TaskBuildBaronCtrl', function($scope, $http, $window) {
+  $scope.conf = $window.plugins["buildbaron"];
   $scope.getBuildBaronResults = function() {
     $http.get('/plugin/buildbaron/jira_bf_search/' + $scope.taskId ).
       success(function(data, status) {
@@ -99,10 +100,12 @@ mciModule.controller('TaskBuildBaronCtrl', function($scope, $http, $window) {
   };
   
   $scope.setTask($window.task_data);
-  if ( $scope.task.status == "failed" ) {
+  if ( $scope.conf.enabled && $scope.task.status == "failed" ) {
     $scope.build_baron_status = "loading"; 
     $scope.getBuildBaronResults();
   }
-  $scope.getNote();
+  if($scope.conf.enabled){
+    $scope.getNote();
+  }
 
 });
