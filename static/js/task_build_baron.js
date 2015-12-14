@@ -52,11 +52,6 @@ mciModule.controller('TaskBuildBaronCtrl', function($scope, $http, $window) {
   });
 
 
-  $scope.clearTicket = function(){
-    $scope.newTicket = true;
-    $scope.ticketKey = "";
-    $scope.ticketTests = [];
-  }
 
   $scope.fileTicket = _.debounce(function(){
     $scope.creatingTicket = true;
@@ -91,8 +86,7 @@ mciModule.controller('TaskBuildBaronCtrl', function($scope, $http, $window) {
   $scope.setTask = function(task) {
     $scope.task = task;
     $scope.taskId = task.id;
-    $scope.failed = _.filter(task.test_results, 
-        function(test){return test.status == 'fail'});
+    $scope.failed = _.filter(task.test_results, function(test){return test.status == 'fail'});
     // special case where we don't need user input when there is only one failure
     if ($scope.failed.length == 1) {
       $scope.ticketTests = [$scope.failed[0].test_file];
@@ -106,6 +100,13 @@ mciModule.controller('TaskBuildBaronCtrl', function($scope, $http, $window) {
   }
   if($scope.conf.enabled){
     $scope.getNote();
+  }
+
+  $scope.clearTicket = function(){
+    $scope.newTicket = true;
+    $scope.ticketKey = "";
+    $scope.ticketTests = [];
+    $scope.setTask($window.task_data);
   }
 
 });
