@@ -19,9 +19,11 @@ mciModule.controller('TaskBuildBaronCtrl', function($scope, $http, $window) {
     $http.get('/plugin/buildbaron/note/' + $scope.taskId ).
       success(function(data, status) {
         // the GET can return null, for empty notes
-        if (data && data.content) {
-          $scope.note = data.content;
+        if (data) {
           $scope.editTime = data.time;
+          if (data.content) {
+            $scope.note = data.content;
+          }
         }
       }).
     error(function(jqXHR, status) {
