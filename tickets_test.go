@@ -8,7 +8,7 @@ import (
 
 func TestDescriptionGeneration(t *testing.T) {
 	Convey("With a set of details, a valid description should be generated", t, func() {
-		out, err := getDescription(
+		_, err := getDescription(
 			&model.Task{
 				DisplayName:  "My Task",
 				Id:           "mytaskid1",
@@ -21,6 +21,26 @@ func TestDescriptionGeneration(t *testing.T) {
 			},
 		)
 		So(err, ShouldBeNil)
+	})
+}
+
+func TestCleanTestName(t *testing.T) {
+
+	tests := [][]string{
+		{`a/b/c1`, "c1"},
+		{`a\b\c2`, "c2"},
+		{`a\b\c3\`, "c3"},
+		{`a/b/c4/`, "c4"},
+		{`a/b/c5//////////`, "c5"},
+		{"c6", "c6"},
+	}
+
+	Convey("Paths representing various OS filepaths", t, func() {
+		Convey("should all return c", func() {
+			for _, t := range tests {
+				So(cleanTestName(t[0]), ShouldEqual, t[1])
+			}
+		})
 	})
 }
 

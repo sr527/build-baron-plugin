@@ -10,7 +10,6 @@ import (
 	"github.com/evergreen-ci/evergreen/plugin"
 	"github.com/evergreen-ci/evergreen/thirdparty"
 	"net/http"
-	"path/filepath"
 	"strings"
 	"text/template"
 )
@@ -114,7 +113,21 @@ func (bbp *BuildBaronPlugin) fileTicket(w http.ResponseWriter, r *http.Request) 
 }
 
 func cleanTestName(path string) string {
-	return filepath.Base(path)
+	if unixIdx := strings.LastIndex(path, "/"); unixIdx != -1 {
+		// if the path ends in a slash, remove it and try again
+		if unixIdx == len(path)-1 {
+			return cleanTestName(path[:len(path)-1])
+		}
+		return path[unixIdx+1:]
+	}
+	if windowsIdx := strings.LastIndex(path, `\`); windowsIdx != -1 {
+		// if the path ends in a slash, remove it and try again
+		if windowsIdx == len(path)-1 {
+			return cleanTestName(path[:len(path)-1])
+		}
+		return path[windowsIdx+1:]
+	}
+	return path
 }
 
 func historyURL(t *model.Task, testName string) string {
