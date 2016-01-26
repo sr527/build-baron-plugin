@@ -1,3 +1,3 @@
 package config
 
-import _ "github.com/evergreen-ci/build-baron-plugin"
+import _ "github.com/sr527/build-baron-plugin"
